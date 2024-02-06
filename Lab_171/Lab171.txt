@@ -1,0 +1,79 @@
+Task 1: Launching an EC2 Instance by using the AWS Management Console
+=> 	Step 1: Choose name and tags (in the Name and tags section, for Name, enter Bastion host)
+	Step 2: Choose an AMI (Application and OS Images (Amazon Machine Image) use Amazon Linux 2.)
+		***Note: This option corresponds to Amazon Linux 2 AMI (HVM) as indicated in the Description.***
+	Step 3: Choose an instance type (From the Instance type dropdown list, search for and choose t3.micro.)
+	Step 4: Configure a key pair ( Proceed without key pair (Not recommended))
+	Step 5: Configure the network settings
+		1. In the Network settings section, choose Edit.
+		2. From the VPC - required dropdown list, choose Lab VPC.
+		3. In the Subnet dropdown list, notice that Public Subnet is selected by default.
+		4. Auto-assign public IP = Enable
+		5. In the Firewall (security groups) section, notice that Create security group is selected. Configure the following options:
+			>For Security group name - required enter Bastion security group
+			>For Description - required enter Permit SSH connections
+	Step 6: Add storage (using a default 8 gibibyte (GiB) disk volume)
+	Step 7: Configure advanced details
+		1. Expand the Advanced details pane.
+		2. From IAM instance profile dropdown list, choose Bastion-Role.
+	Step 8: Launch an EC2 instance (choose Launch instance)
+
+
+
+
+
+
+Task 2: Logging in to the bastion host
+=>	Step 1: On the EC2 Management Console, from the list of EC2 instances displayed, choose the  check box for the bastion host instance. 
+	Step 2:	Choose Connect.
+	Step 3:	On the EC2 Instance Connect tab, choose Connect to connect to the bastion host.
+
+
+
+
+
+Task 3: Launching an EC2 instance using the AWS CLI
+=>	Step 1: Retrieve the AMI to use
+		>Run the following script in your EC2 Instance Connect session:
+		>	#Set the Region
+			AZ=`curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone`
+			export AWS_DEFAULT_REGION=${AZ::-1}
+			#Retrieve latest Linux AMI
+			AMI=$(aws ssm get-parameters --names /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2 --query 'Parameters[0].[Value]' --output text)
+			echo $AMI
+	Step 2: Retrieve the subnet to use
+		>To retrieve the subnet ID for the public subnet, run the following command:
+		>	SUBNET=$(aws ec2 describe-subnets --filters 'Name=tag:Name,Values=Public Subnet' --query Subnets[].SubnetId --output text)
+			echo $SUBNET
+	Step 3: Retrieve the security group to use
+		>Run the following command:
+		>	SG=$(aws ec2 describe-security-groups --filters Name=group-name,Values=WebSecurityGroup --query SecurityGroups[].GroupId --output text)
+			echo $SG
+	Step 4: Download a user data script
+		>To download the user data script, run the following command:
+		>	wget https://aws-tc-largeobjects.s3.us-west-2.amazonaws.com/CUR-TF-100-RESTRT-1-23732/171-lab-JAWS-create-ec2/s3/UserData.txt
+		>	cat UserData.txt
+	Step 5: Launch the instance
+		>Run the following command:
+		>	INSTANCE=$(\
+			aws ec2 run-instances \
+			--image-id $AMI \
+			--subnet-id $SUBNET \
+			--security-group-ids $SG \
+			--user-data file:///home/ec2-user/UserData.txt \
+			--instance-type t3.micro \
+			--tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=Web Server}]' \
+			--query 'Instances[*].InstanceId' \
+			--output text \
+			)
+			echo $INSTANCE
+	Step 6: Wait for the instance to be ready
+		>	aws ec2 describe-instances --instance-ids $INSTANCE
+		>You can retrieve specific information by using the query parameter. Run the following command:
+		>	aws ec2 describe-instances --instance-ids $INSTANCE --query 'Reservations[].Instances[].State.Name' --output text
+	Step 7: Test the web server
+		>	aws ec2 describe-instances --instance-ids $INSTANCE --query Reservations[].Instances[].PublicDnsName --output text
+		>Copy the DNS name that is displayed. It should be similar to the following: 
+			ec2-35-11-22-33.us-west-2.compute.amazonaws.com
+		>Paste the DNS name into a new web browser tab, and then press Enter.
+	
