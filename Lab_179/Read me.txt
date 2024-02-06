@@ -1,0 +1,88 @@
+Lab Title: Migrating to Amazon RDS with AWS CLI
+
+Introduction:
+This lab provides a step-by-step guide for migrating a local cafe website's database to Amazon RDS using the AWS CLI. It covers essential tasks such as setting up security groups, creating subnets, configuring the AWS CLI, creating an Amazon RDS MariaDB instance, and migrating data.
+
+Lab Steps:
+
+1. Accessing the AWS Management Console:
+   - Initiate the lab and wait until the lab status is ready.
+   - Open the AWS Management Console in a new browser tab.
+   - Allow pop-ups if necessary.
+   - Ensure visibility of both the AWS Management Console and lab instructions.
+
+2. Task 1: Generating order data on the café website:
+   - Copy the CafeInstanceURL provided in the lab details.
+   - Visit the cafe website, place orders, and record the number of orders in the Order History.
+
+3. Task 2: Creating an Amazon RDS instance by using the AWS CLI:
+   3.1 Connecting to the CLI Host instance:
+      - Navigate to the EC2 Management Console from the AWS Management Console.
+      - Select Instances from the navigation pane.
+      - Choose the CLI Host instance.
+      - Click Connect and proceed using EC2 Instance Connect.
+   3.2 Configuring the AWS CLI:
+      - Run `aws configure` in the EC2 Instance Connect terminal.
+      - Enter the Access Key ID, Secret Access Key, Default region name, and Default output format when prompted.
+   3.3 Creating prerequisite components:
+      - Create CafeDatabaseSG security group using:
+        ```bash
+        aws ec2 create-security-group \
+        --group-name CafeDatabaseSG \
+        --description "Security group for Cafe database" \
+        --vpc-id <CafeInstance VPC ID>
+        ```
+      - Authorize inbound rule for MySQL requests:
+        ```bash
+        aws ec2 authorize-security-group-ingress \
+        --group-id <CafeDatabaseSG Group ID> \
+        --protocol tcp --port 3306 \
+        --source-group <CafeSecurityGroup Group ID>
+        ```
+      - Create two private subnets and a database subnet group.
+   3.4 Creating the Amazon RDS MariaDB instance:
+      - Create CafeDBInstance using:
+        ```bash
+        aws rds create-db-instance \
+        --db-instance-identifier CafeDBInstance \
+        --engine mariadb \
+        --engine-version 10.5.13 \
+        --db-instance-class db.t3.micro \
+        --allocated-storage 20 \
+        --availability-zone <CafeInstance Availability Zone> \
+        --db-subnet-group-name "CafeDB Subnet Group" \
+        --vpc-security-group-ids <CafeDatabaseSG Group ID> \
+        --no-publicly-accessible \
+        --master-username root --master-user-password 'Re:Start!9'
+        ```
+      - Monitor the status using:
+        ```bash
+        aws rds describe-db-instances \
+        --db-instance-identifier CafeDBInstance \
+        --query "DBInstances[*].[Endpoint.Address,AvailabilityZone,PreferredBackupWindow,BackupRetentionPeriod,DBInstanceStatus]"
+        ```
+      - Wait until the status changes to available and record the RDS Instance Database Endpoint Address.
+
+4. Task 3: Migrating application data to the Amazon RDS instance:
+   - Connect to the CafeInstance using EC2 Instance Connect.
+   - Create a backup of the local cafe_db database using:
+     ```bash
+     mysqldump --user=root --password='Re:Start!9' \
+     --databases cafe_db --add-drop-database > cafedb-backup.sql
+     ```
+   - Restore the backup to the Amazon RDS database using:
+     ```bash
+     mysql --user=root --password='Re:Start!9' \
+     --host=<RDS Instance Database Endpoint Address> < cafedb-backup.sql
+     ```
+   - Test the data migration by opening an interactive MySQL session and querying the product table.
+
+5. Task 4: Configuring the website to use the Amazon RDS instance:
+   - Update the database URL parameter in AWS Systems Manager Parameter Store.
+   - Test the website to confirm correct access to the new database.
+
+6. Task 5: Monitoring the Amazon RDS database:
+   - Open the RDS Management Console.
+   - Choose the cafe RDS instance and navigate to the Monitoring tab.
+   - Monitor key metrics such as CPU Utilization, Database Connections, Free Storage Space, etc.
+   - Open an interactive SQL session to create a database connection and observe the DatabaseConnections metric.
